@@ -130,6 +130,75 @@ checkpoints/
 bash run_optimized.sh
 ```
 
+## 显存优化设置
+
+### 可用参数
+
+| 参数 | 说明 | 显存占用 |
+|------|------|---------|
+| `--fp16` | FP16 半精度推理 | 减半 |
+| `--deepspeed` | DeepSpeed 加速 | 增加 |
+| `--cuda_kernel` | BigVGAN CUDA 内核 | 增加 |
+
+### 不同显卡推荐配置
+
+#### RTX 4090 / RTX 3090 (24GB)
+```bash
+uv run webui.py \
+    --fp16 \
+    --port 7860 \
+    --host 0.0.0.0 \
+    --model_dir ./checkpoints
+```
+- ✅ 可用 `--fp16`
+- ✅ 可选 `--cuda_kernel`（加速 vocoder）
+- ❌ 不推荐 `--deepspeed`（占用过高）
+
+#### RTX 3080 / RTX 2080 Ti (10-12GB)
+```bash
+uv run webui.py \
+    --fp16 \
+    --port 7860 \
+    --host 0.0.0.0 \
+    --model_dir ./checkpoints
+```
+- ✅ 必须用 `--fp16`
+- ❌ 不启用 `--cuda_kernel`
+- ❌ 不启用 `--deepspeed`
+
+#### RTX 3060 / RTX 2060 (6-8GB)
+```bash
+uv run webui.py \
+    --fp16 \
+    --port 7860 \
+    --host 0.0.0.0 \
+    --model_dir ./checkpoints
+```
+- ✅ 必须用 `--fp16`
+- ❌ 不启用 `--cuda_kernel`（会导致 OOM）
+- ❌ 不启用 `--deepspeed`（会导致 OOM）
+- 可能需要降低 batch size 或 mel_length
+
+#### Tesla T4 / GTX 1650 (4-6GB)
+```bash
+uv run webui.py \
+    --fp16 \
+    --port 7860 \
+    --host 0.0.0.0 \
+    --model_dir ./checkpoints
+```
+- ⚠️ 可能会显存不足，建议关闭其他 GPU 程序
+- 必须用 `--fp16`
+- 不启用 `--cuda_kernel` 和 `--deepspeed`
+- 可尝试设置更短的文本
+
+### 快速启动脚本
+
+项目已提供针对 22GB 显存的优化脚本：
+```bash
+bash run_optimized.sh
+```
+
 ## 优势
 
 1. **离线可用**: 模型本地缓存后，无需网络即可运行
