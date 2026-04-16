@@ -84,8 +84,30 @@ class JsonHParams:
         return self.__dict__.__repr__()
 
 
-def build_semantic_model(path_='./models/tts/maskgct/ckpt/wav2vec2bert_stats.pt'):
-    semantic_model = Wav2Vec2BertModel.from_pretrained("facebook/w2v-bert-2.0")
+def build_semantic_model(path_='./models/tts/maskgct/ckpt/wav2vec2bert_stats.pt', local_w2v_path=None):
+    """Build semantic model for MaskGCT.
+
+    Args:
+        path_: Path to the wav2vec2bert_stats.pt file
+        local_w2v_path: Optional local path to w2v-bert-2.0 model directory
+    """
+    import os
+    # If local_w2v_path not provided, look for w2v_bert in the same directory as path_
+    if local_w2v_path is None:
+        if path_.startswith('./'):
+            # Relative path - construct w2v_bert path relative to current directory
+            local_w2v_path = "./w2v_bert"
+        else:
+            # Absolute path - use parent directory
+            parent_dir = os.path.dirname(os.path.dirname(path_))
+            local_w2v_path = os.path.join(parent_dir, "w2v_bert")
+
+    if os.path.exists(local_w2v_path):
+        print(f">> Loading Wav2Vec2BertModel from local: {local_w2v_path}")
+        semantic_model = Wav2Vec2BertModel.from_pretrained(local_w2v_path)
+    else:
+        print(f">> WARNING: local model not found at {local_w2v_path}, trying HuggingFace...")
+        semantic_model = Wav2Vec2BertModel.from_pretrained("facebook/w2v-bert-2.0")
     semantic_model.eval()
     stat_mean_var = torch.load(path_)
     semantic_mean = stat_mean_var["mean"]

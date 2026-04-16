@@ -112,16 +112,30 @@ class IndexTTS2:
                 print(f"{e!r}")
                 self.use_cuda_kernel = False
 
-        self.extract_features = SeamlessM4TFeatureExtractor.from_pretrained("facebook/w2v-bert-2.0")
+        # 使用本地路径加载，避免网络下载
+        w2v_bert_path = os.path.join(self.model_dir, "w2v_bert")
+        if os.path.exists(w2v_bert_path):
+            self.extract_features = SeamlessM4TFeatureExtractor.from_pretrained(w2v_bert_path)
+            print(f">> SeamlessM4TFeatureExtractor loaded from local: {w2v_bert_path}")
+        else:
+            self.extract_features = SeamlessM4TFeatureExtractor.from_pretrained("facebook/w2v-bert-2.0")
         self.semantic_model, self.semantic_mean, self.semantic_std = build_semantic_model(
-            os.path.join(self.model_dir, self.cfg.w2v_stat))
+            os.path.join(self.model_dir, self.cfg.w2v_stat),
+            local_w2v_path=os.path.join(self.model_dir, "w2v_bert"))
         self.semantic_model = self.semantic_model.to(self.device)
         self.semantic_model.eval()
         self.semantic_mean = self.semantic_mean.to(self.device)
         self.semantic_std = self.semantic_std.to(self.device)
 
         semantic_codec = build_semantic_codec(self.cfg.semantic_codec)
-        semantic_code_ckpt = hf_hub_download("amphion/MaskGCT", filename="semantic_codec/model.safetensors")
+        # 优先使用本地路径，避免网络下载
+        local_semantic_codec = os.path.join(self.model_dir, "MaskGCT_model", "semantic_codec", "model.safetensors")
+        if os.path.exists(local_semantic_codec):
+            semantic_code_ckpt = local_semantic_codec
+            print(f">> Using local semantic_codec: {semantic_code_ckpt}")
+        else:
+            semantic_code_ckpt = hf_hub_download("amphion/MaskGCT", filename="semantic_codec/model.safetensors")
+            print(f">> semantic_codec downloaded from Hub: {semantic_code_ckpt}")
         safetensors.torch.load_model(semantic_codec, semantic_code_ckpt)
         self.semantic_codec = semantic_codec.to(self.device)
         self.semantic_codec.eval()
@@ -150,9 +164,16 @@ class IndexTTS2:
         print(">> s2mel weights restored from:", s2mel_path)
 
         # load campplus_model
-        campplus_ckpt_path = hf_hub_download(
-            "funasr/campplus", filename="campplus_cn_common.bin"
-        )
+        # 优先使用本地路径，避免网络下载
+        local_campplus = os.path.join(self.model_dir, "campplus_cn_common.bin")
+        if os.path.exists(local_campplus):
+            campplus_ckpt_path = local_campplus
+            print(f">> Using local campplus_model: {campplus_ckpt_path}")
+        else:
+            campplus_ckpt_path = hf_hub_download(
+                "funasr/campplus", filename="campplus_cn_common.bin"
+            )
+            print(f">> campplus_model downloaded from Hub: {campplus_ckpt_path}")
         campplus_model = CAMPPlus(feat_dim=80, embedding_size=192)
         campplus_model.load_state_dict(torch.load(campplus_ckpt_path, map_location="cpu"))
         self.campplus_model = campplus_model.to(self.device)
@@ -160,7 +181,14 @@ class IndexTTS2:
         print(">> campplus_model weights restored from:", campplus_ckpt_path)
 
         bigvgan_name = self.cfg.vocoder.name
-        self.bigvgan = bigvgan.BigVGAN.from_pretrained(bigvgan_name, use_cuda_kernel=self.use_cuda_kernel)
+        # 优先使用本地路径，避免网络下载
+        local_bigvgan = os.path.join(self.model_dir, "bigvgan_v2")
+        if os.path.exists(local_bigvgan):
+            print(f">> Using local BigVGAN: {local_bigvgan}")
+            self.bigvgan = bigvgan.BigVGAN.from_pretrained(local_bigvgan, use_cuda_kernel=self.use_cuda_kernel)
+        else:
+            self.bigvgan = bigvgan.BigVGAN.from_pretrained(bigvgan_name, use_cuda_kernel=self.use_cuda_kernel)
+            print(f">> BigVGAN downloaded from Hub: {bigvgan_name}")
         self.bigvgan = self.bigvgan.to(self.device)
         self.bigvgan.remove_weight_norm()
         self.bigvgan.eval()
